@@ -1,6 +1,8 @@
 import json
 import time
 import random
+import asyncio
+import websockets
 from datetime import datetime
 
 class DataGenerator:
@@ -19,7 +21,7 @@ class DataGenerator:
     def memory_usage(self):
         return 60 + random.randint(-15, 15)        
     
-    # ---- Switch interface statistics simulations ----
+    # ---- switch interface statistics simulations ----
 
     def interface_stats(self, name, stats):
         now = datetime.now()
@@ -85,37 +87,66 @@ class DataGenerator:
                     iface['oper-state'] = 'up'
                     # need to reset stats when coming back up
                     iface['statistics'] = {'in-packets': 0, 'out-packets': 0, 'in-error-packets': 0, 'out-error-packets': 0, 'in-discarded-packets': 0, 'last-clear': now.strftime("%Y-%m-%dT%H:%M:%SZ")}
-                    
+
+    # prepared to be send
+    def get_filtered_data(self):
+        cpu = self.data['srl-system:system']['utilization']['resource'][0]['used-percent']     
+        memory = self.data['srl-system:system']['utilization']['resource'][1]['used-percent']
+        fans = [{ 'id': f['id'], 'speed': f['fan']['speed'], 'speed-rpm': f['fan']['speed-rpm'] } for f in self.data['srl-platform:platform']['fan-tray']]    
+        interfaces = []
+        for iface in self.data['srl_nokia-interfaces:interface']:
+            iface_data = {
+                'name': iface['name'],
+                'oper-state': iface['oper-state'],
+                'statistics': iface.get('statistics', {}),
+                'traffic-rate': iface.get('traffic-rate', {})
+            }
+            interfaces.append(iface_data)
+        
+        return {
+            'cpu': cpu,
+            'memory': memory,
+            'fans': fans,
+            'interfaces': interfaces
+        }
+
 
     # ---- JSON methods ----
-    
     def get_data(self):
         return self.data
+
+
+async def telemetry_server(websocket, path, generator):
     
-    def save_data(self, filename=None):
-        if not filename:
-            filename = f"srl_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        
-        with open(filename, 'w') as f:
-            json.dump(self.data, f, indent=2)
-        return filename
-
-def main():
-
-    generator = DataGenerator('srl_base_data.json')
-    update = 0
+    # Static info sent once
+    static_info = {
+        "hostname": generator.data['srl-system:system']['information']['description'],
+        "version": generator.data['srl-system:system']['information']['version'],
+        "last-booted": generator.data['srl-system:system']['information']['last-booted'],
+    }
 
     try:
         while True:
             generator.update()
+            payload = {
+                "static": static_info,
+                "dynamic": generator.get_filtered_data()
+            }
             
-            if update % 5 == 0:
-                print(f"Data saved to {generator.save_data()}")
-            update += 1
+            print(payload)  # debug
+            await websocket.send(json.dumps(payload)) # send to client
+            await asyncio.sleep(10)  # update interval
+    except websockets.ConnectionClosed:
+        print("Client disconnected")
 
-            time.sleep(10) # wait before next update
-    except KeyboardInterrupt:
-        print("Simulation stopped.")
+async def main():
+    generator = DataGenerator('srl_base_data.json')
 
+    async def handler(ws, path):
+        await telemetry_server(ws, path, generator)
+
+    server = await websockets.serve(handler, "localhost", 8765)
+    await server.wait_closed()
+    
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
