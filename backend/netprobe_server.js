@@ -3,41 +3,45 @@
 // Imports des modules
 import { expressX } from '@jcbuisson/express-x';
 import { PrismaClient } from '@prisma/client';
-import express from 'express';
 
 // Initialisation des objets Prisma (BDD) et Express-X (WebSocket Server)
 const prisma = new PrismaClient();
-const netprobe = express();
 const netprobeX = expressX(prisma);
+// Parser le JSON
+import bodyParser from 'body-parser';
+// Ajoute le middleware pour parser le JSON
+netprobeX.use(bodyParser.json());
 
-// ---[ Express-X WebSocket Server ]---------------------------------
+
+// ------------------------------------------------------------------
+// ---[ Express-X for Frontend requests ]----------------------------
+// ------------------------------------------------------------------
 
 // Création du service 'alarm' pour gérer les opérations CRUD
-netprobeX.createService('alarm', {
-   findUnique: prisma.alarm.findUnique,         // Trouver une alarme par son ID unique
-   create: prisma.alarm.create,                 // Créer une nouvelle alarme
-   update: prisma.alarm.update,                 // Mettre à jour une alarme existante
-   delete: prisma.alarm.delete,                 // Supprimer une alarme
-   findMany: prisma.alarm.findMany,             // Récupérer toutes les alarmes
+netprobeX.createService('alarms', {
+   findUnique: prisma.alarm.findUnique,            // Trouver une alarme par son ID unique
+   // create: prisma.alarm.create,                 // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
+   // update: prisma.alarm.update,                 // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
+   // delete: prisma.alarm.delete,                 // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
+   findMany: prisma.alarm.findMany,                // Récupérer toutes les alarmes
 });
 
-// Publication des alarmes aux clients abonnés au service 'alarm' par WebSocket sur le canal 'alarm'
-netprobeX.service('alarm').publish(async (alarm, context) => {
-   return ['alarm'];
-});
+// Publication des alarmes aux clients abonnés au service 'alarms' par WebSocket sur le canal 'alarms'
+netprobeX.service('alarms').publish(async (alarms, context) => {
+   return ['public'];
+});      
 
-// Écouteur pour les connexions clients WebSocket et les ajoute au canal 'alarm'
+// Écouteur pour les connexions clients WebSocket et les ajoute au canal 'public'
 netprobeX.addConnectListener((socket) => {
-   netprobeX.joinChannel('alarm', socket);
+   netprobeX.joinChannel('public', socket);
 });
 
-// ---[ Express API-Rest Server ]------------------------------------
-
-// Parser le JSON
-netprobe.use(express.json());
+// ------------------------------------------------------------------
+// ---[ Express API-Rest Server for middleware ]---------------------
+// ------------------------------------------------------------------
 
 // Route GET pour récupérer toutes les alarmes en BDD Prisma
-netprobe.get('/alarms', async (req, res) => {
+netprobeX.get('/api/alarms', async (req, res) => {
    try {
        const alarms = await prisma.alarm.findMany();
        res.status(200).json(alarms);
@@ -47,10 +51,61 @@ netprobe.get('/alarms', async (req, res) => {
    }
 });
 
-// Démarrage du serveur Rest API sur le port 6777 --> Récupération des alarmes
-netprobe.listen(6777, () => console.log(`App listening at http://localhost:6777`))
-
-// Démarrage du serveur WebSocket sur le port 8000 --> Gestion des alarmes depuis le front 
-netprobeX.httpServer.listen(8000, () => {
-   console.log(`NetProbe Serveur : http://localhost:8000`);
+// Route POST pour créer une nouvelle alarme en BDD Prisma
+netprobeX.post('/api/alarms', async (req, res) => {
+   const { signal_id, signal_label } = req.body;
+   try {
+      const newAlarm = await prisma.alarm.create({
+         data: {
+            signal_id,
+            signal_label,
+         },
+      });
+      res.status(201).json(newAlarm);
+      // Publier l'événement WebSocket pour la nouvelle alarme
+      netprobeX.service('alarms').emit('created', newAlarm);
+   } catch (error) {
+      console.error('Erreur lors de la création de l\'alarme :', error);
+      res.status(500).send('Erreur lors de la création de l\'alarme.');
+   }
 });
+
+// Route DELETE pour supprimer une alarme par son ID
+netprobeX.delete('/api/alarms/:id', async (req, res) => {
+   const { id } = req.params;
+   try {
+      await prisma.alarm.delete({
+            where: { id: parseInt(id) },
+         });
+         res.status(204).send();
+   } catch (error) {
+         console.error('Erreur lors de la suppression de l\'alarme :', error);
+         res.status(500).send('Erreur lors de la suppression de l\'alarme.');
+   }
+});
+
+// Route PUT pour mettre à jour une alarme par son ID
+netprobeX.put('/api/alarms/:id', async (req, res) => {
+   const { id } = req.params;
+   const { signal_id, signal_label } = req.body;
+   try {
+      const updatedAlarm = await prisma.alarm.update({
+         where: { id: parseInt(id) },
+         data: { signal_id, signal_label },
+      });
+      res.status(200).json(updatedAlarm);
+   } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'alarme :', error);
+      res.status(500).send('Erreur lors de la mise à jour de l\'alarme.');
+   }
+});
+
+// ------------------------------------------------------------------
+
+// Démarrage du serveur WebSocket sur le port 8080 
+netprobeX.httpServer.listen(8080, () => {
+   console.log(`NetProbe Serveur : http://localhost:8080`);
+});
+
+// ------------------------------------------------------------------
+
