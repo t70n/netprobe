@@ -116,7 +116,7 @@ class DataGenerator:
         return self.data
 
 
-async def telemetry_server(websocket, path, generator):
+async def telemetry_server(websocket, generator):
     
     # Static info sent once
     static_info = {
@@ -133,7 +133,7 @@ async def telemetry_server(websocket, path, generator):
                 "dynamic": generator.get_filtered_data()
             }
             
-            print(payload)  # debug
+            #print(payload)  # debug
             await websocket.send(json.dumps(payload)) # send to client
             await asyncio.sleep(10)  # update interval
     except websockets.ConnectionClosed:
@@ -142,8 +142,8 @@ async def telemetry_server(websocket, path, generator):
 async def main():
     generator = DataGenerator('srl_base_data.json')
 
-    async def handler(ws, path):
-        await telemetry_server(ws, path, generator)
+    async def handler(ws):
+        await telemetry_server(ws, generator)
 
     server = await websockets.serve(handler, "localhost", 8765)
     await server.wait_closed()
