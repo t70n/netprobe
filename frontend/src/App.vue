@@ -1,30 +1,45 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div>
-  <HelloWorld msg="Vite + Vue" />
+  <v-app>
+    <!-- App Bar -->
+    <v-app-bar color="primary" density="default">
+      <v-app-bar-title class="text-white">
+        <div class="d-flex align-center">
+          <v-icon icon="mdi-lan-connect" class="mr-2"></v-icon>
+          NetProbe
+        </div>
+      </v-app-bar-title>
+
+      <v-spacer></v-spacer>
+
+      <div class="d-flex align-center text-white text-subtitle-2 mr-4">
+        <v-icon icon="mdi-circle" color="success" size="small" class="mr-1"></v-icon>
+        Connected to backend:8000
+      </div>
+      
+      <v-btn icon>
+        <v-icon>mdi-cog-outline</v-icon>
+      </v-btn>
+    </v-app-bar>
+
+    <!-- Main Content -->
+    <v-main class="bg-grey-lighten-4">
+      <v-container fluid class="pa-4">
+        <Dashboard />
+      </v-container>
+    </v-main>
+
+    <!-- Footer -->
+    <v-footer app class="pa-3 text-center">
+      <div class="text-caption text-grey">NetProbe Monitoring Tool</div>
+    </v-footer>
+  </v-app>
 </template>
 
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
-}
-</style>
+<script>
+import Dashboard from './components/Dashboard.vue';
+
+export default {
+  name: 'App',
+  components: { Dashboard }
+};
+</script>
