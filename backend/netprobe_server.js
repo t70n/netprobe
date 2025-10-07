@@ -6,12 +6,9 @@ import { PrismaClient } from '@prisma/client';
 
 // Initialisation des objets Prisma (BDD) et Express-X (WebSocket Server)
 const prisma = new PrismaClient();
-const netprobeX = expressX(prisma);
-// Parser le JSON
+const netprobeX = expressX();
 import bodyParser from 'body-parser';
-// Ajoute le middleware pour parser le JSON
-netprobeX.use(bodyParser.json());
-
+netprobeX.use(bodyParser.json());                  // Middleware pour parser le JSON
 
 // ------------------------------------------------------------------
 // ---[ Express-X for Frontend requests ]----------------------------
@@ -20,14 +17,14 @@ netprobeX.use(bodyParser.json());
 // Création du service 'alarm' pour gérer les opérations CRUD
 netprobeX.createService('alarms', {
    findUnique: prisma.alarm.findUnique,            // Trouver une alarme par son ID unique
-   // create: prisma.alarm.create,                 // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
-   // update: prisma.alarm.update,                 // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
-   // delete: prisma.alarm.delete,                 // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
+   create: prisma.alarm.create,                 // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
+   update: prisma.alarm.update,                 // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
+   delete: prisma.alarm.delete,                 // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
    findMany: prisma.alarm.findMany,                // Récupérer toutes les alarmes
 });
 
 // Publication des alarmes aux clients abonnés au service 'alarms' par WebSocket sur le canal 'alarms'
-netprobeX.service('alarms').publish(async (alarms, context) => {
+netprobeX.service('alarms').publish(async (alarm, context) => {
    return ['public'];
 });      
 
@@ -55,15 +52,13 @@ netprobeX.get('/api/alarms', async (req, res) => {
 netprobeX.post('/api/alarms', async (req, res) => {
    const { signal_id, signal_label } = req.body;
    try {
-      const newAlarm = await prisma.alarm.create({
+      const newAlarm = await netprobeX.service('alarms').create({
          data: {
             signal_id,
             signal_label,
          },
       });
       res.status(201).json(newAlarm);
-      // Publier l'événement WebSocket pour la nouvelle alarme
-      netprobeX.service('alarms').emit('created', newAlarm);
    } catch (error) {
       console.error('Erreur lors de la création de l\'alarme :', error);
       res.status(500).send('Erreur lors de la création de l\'alarme.');

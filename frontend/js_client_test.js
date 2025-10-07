@@ -1,3 +1,4 @@
+
 // client.js
 import io from 'socket.io-client'
 import expressXClient from '@jcbuisson/express-x-client'
@@ -9,12 +10,7 @@ const app = expressXClient(socket)
 async function main() {
     try {
 
-        const initialAlarms = await app.service('alarms').findMany({})
-        console.log('Initial Alarms:', initialAlarms)
-
-        app.service('alarms').on('created', (alarm) => {
-            console.log('New Alarm Created:', alarm)
-        })
+        app.service('alarms').create({data:{ signal_id: 123, signal_label: 'Test Alarm' }})
 
     } catch (error) {
         console.error('An error occurred:', error);
