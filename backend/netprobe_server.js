@@ -17,9 +17,9 @@ netprobeX.use(bodyParser.json());                  // Middleware pour parser le 
 // Création du service 'alarm' pour gérer les opérations CRUD
 netprobeX.createService('alarms', {
    findUnique: prisma.alarm.findUnique,            // Trouver une alarme par son ID unique
-   create: prisma.alarm.create,                 // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
-   update: prisma.alarm.update,                 // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
-   delete: prisma.alarm.delete,                 // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
+   create: prisma.alarm.create,                    // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
+   update: prisma.alarm.update,                    // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
+   delete: prisma.alarm.delete,                    // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
    findMany: prisma.alarm.findMany,                // Récupérer toutes les alarmes
 });
 
@@ -69,10 +69,10 @@ netprobeX.post('/api/alarms', async (req, res) => {
 netprobeX.delete('/api/alarms/:id', async (req, res) => {
    const { id } = req.params;
    try {
-      await prisma.alarm.delete({
-            where: { id: parseInt(id) },
-         });
-         res.status(204).send();
+      const delAlarm = await netprobeX.service('alarms').delete({
+         where: { id: parseInt(id) },
+      });
+      res.status(200).json(delAlarm);
    } catch (error) {
          console.error('Erreur lors de la suppression de l\'alarme :', error);
          res.status(500).send('Erreur lors de la suppression de l\'alarme.');
@@ -84,7 +84,7 @@ netprobeX.put('/api/alarms/:id', async (req, res) => {
    const { id } = req.params;
    const { signal_id, signal_label } = req.body;
    try {
-      const updatedAlarm = await prisma.alarm.update({
+      const updatedAlarm = await netprobeX.service('alarms').update({
          where: { id: parseInt(id) },
          data: { signal_id, signal_label },
       });

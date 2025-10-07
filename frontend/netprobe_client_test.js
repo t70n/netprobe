@@ -12,8 +12,16 @@ async function main() {
         const initialAlarms = await app.service('alarms').findMany({})
         console.log('Initial Alarms:', initialAlarms)
 
-        app.service('alarms').on('created', (alarm) => {
+        app.service('alarms').on('create', (alarm) => {
             console.log('New Alarm Created:', alarm)
+        })
+
+        app.service('alarms').on('update', (alarm) => {
+            console.log('Alarm Updated:', alarm)
+        })
+
+        app.service('alarms').on('delete', (alarm) => {
+            console.log('Alarm Deleted:', alarm)
         })
 
     } catch (error) {

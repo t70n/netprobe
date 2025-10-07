@@ -1,25 +1,79 @@
-# netprobe
-Projet - N7AN04A : Application Internet - FRANCOIS - PRADIER - CHAVEROUX
+# NetProbe
+**Projet - N7AN04A : Application Internet**
+*FRANCOIS - PRADIER - CHAVEROUX*
 
-## ===[ BACKEND ]============================================
+---
 
-### Initialiser NPM and installer Express-X
+## 📦 Backend
+Le backend de l'application **NetProbe** est contenu dans le fichier `./backend/netprobe_server.js`.
 
-npm i
+### Lancement du backend
+Pour lancer le backend, utilisez la commande suivante :
+```bash
+npx nodemon netprobe_server.js
+```
 
-### Lancer et compléter la BDD Prisma
+---
 
+### Initialisation
+
+#### 1. Installer les dépendances
+```bash
+npm install
+```
+
+#### 2. Initialiser et compléter la base de données avec Prisma
+```bash
 npx prisma db push
-js jeu_donnees_test.js
+node jeu_donnees_test.js
+```
+---
 
-### Lancer le serveur
+### Tests
+Pour tester le backend, vous pouvez utiliser un client de test frontal.
 
-node netprobe_server.js
+#### Lancer le client de test
+Le client frontal permet de récupérer toutes les entrées de la base de données et se met à jour en temps réel lorsqu'une nouvelle donnée est publiée.
+```bash
+npx nodemon netprobe_client_test.js
+```
 
-### Requêtes sur le serveur API Rest 
+#### Publier des données dans la base de données
+Utilisez le script `jeu_curl_test.sh` pour publier des données :
+```bash
+chmod +x ./backend/jeu_curl_test.sh
+./backend/jeu_curl_test.sh
+```
+> **Note** : Assurez-vous d'avoir [`jq`](https://stedolan.github.io/jq/) installé sur votre machine pour formater les réponses JSON.
 
-curl http://localhost:6777/alarms
+---
 
+### Commandes cURL utiles
+Voici quelques commandes cURL pour interagir avec l'API :
 
+#### Récupérer toutes les alarmes
+```bash
+curl -s -X GET http://localhost:8080/api/alarms | jq
+```
 
+#### Ajouter une alarme
+```bash
+curl -s -X POST http://localhost:8080/api/alarms \
+    -H 'Content-Type: application/json' \
+    -d '{"signal_id": 0, "signal_label": "Merci JC.Buisson"}' | jq
+```
 
+#### Supprimer une alarme
+```bash
+curl -s -X DELETE http://localhost:8080/api/alarms/{alarm_id} \
+    -H 'Content-Type: application/json' | jq
+```
+
+#### Mettre à jour une alarme
+```bash
+curl -s -X PUT http://localhost:8080/api/alarms/{alarm_id} \
+    -H 'Content-Type: application/json' \
+    -d '{"signal_id": 0, "signal_label": "Merci BCP JC.Buisson pour le troubleshoot"}' | jq
+```
+
+> **Remarque** : Les méthodes `PUT` et `DELETE` sont disponibles uniquement à des fins d'apprentissage et de pédagogie. Dans un environnement de production, les routeurs ou appareils IoT ne devraient **pas** avoir accès à ces méthodes.
