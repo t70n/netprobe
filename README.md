@@ -4,45 +4,43 @@
 
 ---
 
-## 📦 Backend
+## Backend
 Le backend de l'application **NetProbe** est contenu dans le fichier `./backend/netprobe_server.js`.
-
-### Lancement du backend
-Pour lancer le backend, utilisez la commande suivante :
-```bash
-npx nodemon netprobe_server.js
-```
-
----
 
 ### Initialisation
 
 #### 1. Installer les dépendances
 ```bash
-npm install
+cd ./backend; npm install;  cd ..
 ```
 
 #### 2. Initialiser et compléter la base de données avec Prisma
 ```bash
-npx prisma db push
-node jeu_donnees_test.js
+cd ./backend; npx prisma db push; js ./prisma/jeu_donnees_test.js;cd ..
 ```
 ---
 
+### Lancement du backend
+Pour lancer le backend, utilisez la commande suivante :
+```bash
+npx nodemon ./backend/netprobe_server.js
+```
+
+---
 ### Tests
 Pour tester le backend, vous pouvez utiliser un client de test frontal.
 
 #### Lancer le client de test
 Le client frontal permet de récupérer toutes les entrées de la base de données et se met à jour en temps réel lorsqu'une nouvelle donnée est publiée.
 ```bash
-npx nodemon netprobe_client_test.js
+npx nodemon ./test_frontend/netprobe_client_test.js
 ```
 
 #### Publier des données dans la base de données
 Utilisez le script `jeu_curl_test.sh` pour publier des données :
 ```bash
-chmod +x ./backend/jeu_curl_test.sh
-./backend/jeu_curl_test.sh
+chmod +x ./test_middleware/jeu_curl_test.sh
+./test_middleware/jeu_curl_test.sh
 ```
 > **Note** : Assurez-vous d'avoir [`jq`](https://stedolan.github.io/jq/) installé sur votre machine pour formater les réponses JSON.
 
