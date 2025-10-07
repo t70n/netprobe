@@ -4,7 +4,7 @@
 
 ---
 
-## 📦 Backend
+## Backend
 Le backend de l'application **NetProbe** est contenu dans le fichier `./backend/netprobe_server.js`.
 
 ### Lancement du backend
