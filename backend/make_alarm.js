@@ -1,5 +1,7 @@
 import WebSocket from 'ws';
 
+const API_URL = 'http://localhost:8080/api/alarms';
+
 const thresholds = {
     cpu: 80,
     memory: 85,
@@ -10,6 +12,29 @@ const thresholds = {
     inDiscardedPackets: 5,
     trafficBps: 1500000000,
 };
+
+async function sendAlarmToAPI(alarm) {
+    try {
+        const response = await fetch(API_URL, {
+            method : 'POST',
+            headers : {
+                'Content-Type' : 'application/json',
+            },
+            body: JSON.stringify(alarm),
+        });
+
+        if (!response.ok) {
+            console.error(`erreur api : ${response.status} - ${response.statusText}`);
+            return false;
+        }
+        const newAlarm = await response.json();
+        console.log(`alarme envoyée et crée (ID: ${newAlarm.id})`);
+        return true;
+    } catch (error) {
+        console.error('Erreur lors de l\'envoi de l\'alarme');
+        return false;
+    }
+}
 
 /**
  * 
@@ -108,13 +133,15 @@ async function connectToServer() {
             console.log('awaiting data...');
         };
 
-        ws.onmessage = (event) => {
+        ws.onmessage = async (event) => {
             try {
                 const payload = JSON.parse(event.data);
                 const alarms = triggerAlarms(payload);
 
                 if (alarms.length > 0) {
                     console.table(alarms); 
+                    const sendPromises = alarms.map(alarm => sendAlarmToAPI(alarm));
+                    await Promise.all(sendPromises);
                 } else {
                     console.log('no alarms triggered');
                 }
