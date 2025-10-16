@@ -12,6 +12,7 @@ Le backend de l'application **NetProbe** est contenu dans le fichier `./backend/
 #### 1. Installer les dépendances
 ```bash
 cd ./backend; npm install;  cd ..
+cd ./test_frontend; npm install;  cd ..
 ```
 
 #### 2. Initialiser et compléter la base de données avec Prisma
