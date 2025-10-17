@@ -92,7 +92,7 @@ export default {
       // Fetch initial alerts from backend
       try {
         // Try to get data from alarm service
-        const initialAlarms = await app.service('alarm').findMany({});
+        const initialAlarms = await app.service('alarms').findMany({});
         console.log('Initial Alarms:', initialAlarms);
         
         if (initialAlarms && Array.isArray(initialAlarms)) {
@@ -100,13 +100,13 @@ export default {
         }
 
         // Use 'create' event (not 'created')
-        app.service('alarm').on('create', (alarm) => {
-          console.log('New Alarm Created:', alarm);
-          pushAlert(alarm);
+        app.service('alarms').on('create', (alarms) => {
+          console.log('New alarms Created:', alarms);
+          pushAlert(alarms);
         });
 
       } catch (error) {
-        console.warn('Error with alarm service:', error);
+        console.warn('Error with alarms service:', error);
         
         // Fallback: try alertes service
         try {

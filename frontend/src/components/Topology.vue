@@ -67,7 +67,7 @@ export default {
       appClient: null,
       deviceIcons: {
         Router: {
-          url: "https://www.svgrepo.com/download/474393/router.svg"
+          url: "/img/catrouter.jpg"
         }
       }
     };

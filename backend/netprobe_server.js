@@ -17,9 +17,9 @@ netprobeX.use(bodyParser.json());                  // Middleware pour parser le 
 // Création du service 'alarm' pour gérer les opérations CRUD
 netprobeX.createService('alarms', {
    findUnique: prisma.alarm.findUnique,            // Trouver une alarme par son ID unique
-   create: prisma.alarm.create,                    // Créer une nouvelle alarme                 /!\ NOT ALLOWED /!\
-   update: prisma.alarm.update,                    // Mettre à jour une alarme existante        /!\ NOT ALLOWED /!\
-   delete: prisma.alarm.delete,                    // Supprimer une alarme existante            /!\ NOT ALLOWED /!\
+   create: prisma.alarm.create,                    // Créer une nouvelle alarme
+   update: prisma.alarm.update,                    // Mettre à jour une alarme existante        /!\ SHOULD NOT BE ALLOWED FOR FRONTEND /!\
+   delete: prisma.alarm.delete,                    // Supprimer une alarme existante            /!\ SHOULD NOT BE ALLOWED FOR FRONTEND /!\
    findMany: prisma.alarm.findMany,                // Récupérer toutes les alarmes
 });
 
