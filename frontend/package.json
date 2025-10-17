@@ -11,6 +11,8 @@
   "dependencies": {
     "@jcbuisson/express-x-client": "^2.2.1",
     "@mdi/font": "^7.4.47",
+    "gojs": "^3.1.0",
+    "socket.io-client": "^4.8.1",
     "vue": "^3.5.22",
     "vuetify": "^3.9.0-beta.1"
   },

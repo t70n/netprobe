@@ -4,7 +4,7 @@ generator client {
 
 model alarm {
    id			         Int		@default(autoincrement()) @id
-   signal_id		   Int		
+   signal_id		   String		
    signal_label		String
 }
 
