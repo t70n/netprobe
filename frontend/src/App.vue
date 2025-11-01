@@ -9,6 +9,16 @@
         </div>
       </v-app-bar-title>
 
+      <!-- Links -->
+      <v-btn to="/" class="text-white">
+        <v-icon start icon="mdi-view-dashboard"></v-icon>
+        Dashboard
+      </v-btn>
+      <v-btn to="/logs" class="text-white">
+        <v-icon start icon="mdi-console-line"></v-icon>
+        Network Logs
+      </v-btn>
+
       <v-spacer></v-spacer>
 
       <div class="d-flex align-center text-white text-subtitle-2 mr-4">
@@ -24,7 +34,7 @@
     <!-- Main Content -->
     <v-main class="bg-grey-lighten-4">
       <v-container fluid class="pa-4">
-        <Dashboard />
+        <router-view />
       </v-container>
     </v-main>
 
@@ -36,10 +46,8 @@
 </template>
 
 <script>
-import Dashboard from './components/Dashboard.vue';
 
 export default {
   name: 'App',
-  components: { Dashboard }
 };
 </script>
