@@ -23,7 +23,7 @@
 
       <div class="d-flex align-center text-white text-subtitle-2 mr-4">
         <v-icon icon="mdi-circle" color="success" size="small" class="mr-1"></v-icon>
-        Connected to backend:8000
+        Connected to backend:8080
       </div>
       
       <v-btn icon>

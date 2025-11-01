@@ -179,27 +179,29 @@
   
     try {
   
-      socket.on('connect', () => console.log('Logs.vue connecté au backend (8080)'));
+      socket.on('connect', () => {
+        console.log('Logs.vue connecté au backend (8080)');
   
-      const alarmService = app.service('alarms');
+        const alarmService = app.service('alarms');
   
-      alarmService.findMany({})
-        .then(initialAlarms => {
-          if (initialAlarms && Array.isArray(initialAlarms)) {
-            alarms.value = [...staticAlarms, ... initialAlarms];
-            //alarms.value = initialAlarms; 
-          } else {
-            alarms.value = staticAlarms; // test
-          }
-        })
-        .catch(err => {
-          console.warn('Échec de récupération des alarmes initiales:', err.message);
-        });
+        alarmService.findMany({})
+          .then(initialAlarms => {
+            if (initialAlarms && Array.isArray(initialAlarms)) {
+              alarms.value = [...staticAlarms, ... initialAlarms];
+              //alarms.value = initialAlarms; 
+            } else {
+              alarms.value = staticAlarms; // test
+            }
+          })
+          .catch(err => {
+            console.warn('Échec de récupération des alarmes initiales:', err.message);
+          });
   
-        alarmService.on('create', (newAlarm) => {
-        if (newAlarm) {
-          alarms.value.unshift(newAlarm); 
-        }
+          alarmService.on('create', (newAlarm) => {
+            if (newAlarm) {
+              alarms.value.unshift(newAlarm); 
+            }
+         });
       });
   
     } catch (error) {
