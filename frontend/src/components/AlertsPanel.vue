@@ -2,39 +2,33 @@
   <div class="alerts-panel">
     <!-- Live alerts list -->
     <v-list lines="two" class="alerts-list">
-      <template v-if="alertes.length">
+      <template v-if="alarms.length">
         <v-list-item
-          v-for="alert in alertes"
-          :key="alert.id"
-          :class="severityClass(alert.severity)"
+          v-for="alarm in alarms"
+          :key="alarm.id"
+          :class="severityClass(alarm)"
         >
           <template v-slot:prepend>
-            <v-avatar :color="severityColor(alert.severity)" size="36">
-              <v-icon icon="mdi-alert" color="white"></v-icon>
-            </v-avatar>
+            <v-icon :color="getAlarmColor(alarm)" class="mr-3">
+              {{ getAlarmIcon(alarm) }}
+            </v-icon>
           </template>
           
-          <v-list-item-title class="font-weight-medium">
-            {{ alert.signal_label || 'Alert' }}
+          <v-list-item-title class="font-weight-bold">
+            {{ alarm.signal_label || 'Unknown Alert' }}
           </v-list-item-title>
           
           <v-list-item-subtitle>
-            {{ alert.device || '—' }} • {{ alert.interface || '—' }} • {{ alert.metric_value ?? '—' }}
+            ID: {{ alarm.signal_id }}
           </v-list-item-subtitle>
           
           <template v-slot:append>
-            <v-chip
-              size="small"
-              :color="severityColor(alert.severity)"
-              variant="tonal"
-              class="text-capitalize"
-            >
-              {{ alert.severity || 'info' }}
-            </v-chip>
-            <div class="text-caption text-grey mt-1">{{ formatTimestamp(alert.timestamp) }}</div>
+            <div class="text-caption text-grey">
+              {{ formatTimestamp(alarm.timestamp) }}
+            </div>
           </template>
         </v-list-item>
-        <v-divider v-if="alertes.length > 1"></v-divider>
+        <v-divider v-if="alarms.length > 1"></v-divider>
       </template>
 
       <div v-else class="d-flex flex-column align-center justify-center pa-8">
@@ -47,108 +41,165 @@
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import io from 'socket.io-client';
+import { io } from 'socket.io-client';
 import expressXClient from '@jcbuisson/express-x-client';
 
 export default {
   name: 'AlertsPanel',
-  setup() {
-    const alertes = ref([]);
-    const socket = io('http://localhost:8080', { transports: ['websocket'] });
-    const app = expressXClient(socket);
-
-    function formatTimestamp(ts) {
-      try {
-        return ts ? new Date(ts).toLocaleString() : '';
-      } catch {
-        return '';
-      }
-    }
-
-    function severityClass(sev) {
-      if (sev === 'critical') return 'alert-critical';
-      if (sev === 'major') return 'alert-major';
-      if (sev === 'minor') return 'alert-minor';
-      return 'alert-info';
-    }
-    
-    function severityColor(sev) {
-      if (sev === 'critical') return 'error';
-      if (sev === 'major') return 'orange-darken-2';
-      if (sev === 'minor') return 'warning';
-      return 'grey';
-    }
-
-    const pushAlert = (a) => {
-      if (!a) return;
-      alertes.value.unshift(a);
-      if (alertes.value.length > 200) alertes.value.pop();
+  data() {
+    return {
+      alarms: [],
+      socket: null,
+      app: null,
     };
-
-    onMounted(async () => {
-      socket.on('connect', () => console.log('AlertsPanel connected to backend (8000)'));
-
-      // Fetch initial alerts from backend
-      try {
-        // Try to get data from alarm service
-        const initialAlarms = await app.service('alarms').findMany({});
-        console.log('Initial Alarms:', initialAlarms);
-        
-        if (initialAlarms && Array.isArray(initialAlarms)) {
-          alertes.value = initialAlarms;
-        }
-
-        // Use 'create' event (not 'created')
-        app.service('alarms').on('create', (alarms) => {
-          console.log('New alarms Created:', alarms);
-          pushAlert(alarms);
-        });
-
-      } catch (error) {
-        console.warn('Error with alarms service:', error);
-        
-        // Fallback: try alertes service
-        try {
-          const svc = app.service('alertes');
-          if (svc && typeof svc.on === 'function') {
-            svc.on('create', (a) => pushAlert(a));
-            svc.on('update', (a) => pushAlert(a));
-          } else {
-            socket.on('nouvelle_alerte', (a) => pushAlert(a));
-          }
-        } catch (e) {
-          console.warn('Service approach failed, using socket events');
-          socket.on('nouvelle_alerte', (a) => pushAlert(a));
-        }
-        
-        // Add some demo alerts for testing UI
-        setTimeout(() => {
-          pushAlert({
-            id: 'test1',
-            severity: 'critical',
-            device: 'R1',
-            interface: 'eth0',
-            signal_label: '[Fake]High CPU Usage',
-            metric_value: '98%',
-            timestamp: new Date()
-          });
-          
-          setTimeout(() => {
-            pushAlert({
-              id: 'test2',
-              severity: 'minor',
-              device: 'S1',
-              interface: 'eth2',
-              signal_label: '[Fake]Packet Loss',
-              metric_value: '2%',
-              timestamp: new Date()
-            });
-          }, 2000);
-        }, 1000);
-      }
+  },
+  async mounted() {
+    console.log('AlertsPanel mounted');
+    
+    this.socket = io({ 
+      transports: ['websocket', 'polling'],
+      reconnection: true,
     });
-    return { alertes, formatTimestamp, severityClass, severityColor };
+    
+    this.socket.on('connect', () => {
+      console.log('AlertsPanel: Connected to backend');
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('AlertsPanel: Disconnected from backend');
+    });
+
+    this.app = expressXClient(this.socket);
+
+    try {
+      const alarmService = this.app.service('alarms');
+      
+      // Fetch initial alarms
+      const initialAlarms = await alarmService.findMany({});
+      console.log('AlertsPanel: Initial alarms loaded:', initialAlarms);
+      
+      if (initialAlarms && Array.isArray(initialAlarms)) {
+        this.alarms = initialAlarms.map(a => ({
+          ...a,
+          timestamp: a.timestamp || new Date().toISOString()
+        }));
+      }
+
+      // Listen for new alarms
+      alarmService.on('create', (newAlarm) => {
+        console.log('AlertsPanel: New alarm received:', newAlarm);
+        this.pushAlert(newAlarm);
+      });
+
+      alarmService.on('update', (updatedAlarm) => {
+        console.log('AlertsPanel: Alarm updated:', updatedAlarm);
+        this.updateAlert(updatedAlarm);
+      });
+
+      alarmService.on('delete', (deletedAlarm) => {
+        console.log('AlertsPanel: Alarm deleted:', deletedAlarm);
+        this.removeAlert(deletedAlarm.id);
+      });
+
+    } catch (error) {
+      console.error('AlertsPanel: Error setting up alarm service:', error);
+    }
+  },
+  methods: {
+    formatTimestamp(ts) {
+      if (!ts) return 'Just now';
+      try {
+        const date = new Date(ts);
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000); // seconds
+        
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return date.toLocaleString();
+      } catch {
+        return 'Unknown time';
+      }
+    },
+    
+    inferSeverity(alarm) {
+      const label = (alarm.signal_label || '').toLowerCase();
+      if (label.includes('critical') || label.includes('[critical]')) return 'critical';
+      if (label.includes('major') || label.includes('[major]')) return 'major';
+      if (label.includes('minor') || label.includes('warning') || label.includes('[warning]')) return 'minor';
+      return 'info';
+    },
+    
+    getAlarmIcon(alarm) {
+      const severity = this.inferSeverity(alarm);
+      const icons = {
+        'critical': 'mdi-alert-circle',
+        'major': 'mdi-alert',
+        'minor': 'mdi-alert-outline',
+        'info': 'mdi-information'
+      };
+      return icons[severity] || 'mdi-information';
+    },
+    
+    getAlarmColor(alarm) {
+      const severity = this.inferSeverity(alarm);
+      const colors = {
+        'critical': 'error',
+        'major': 'orange-darken-2',
+        'minor': 'warning',
+        'info': 'grey'
+      };
+      return colors[severity] || 'grey';
+    },
+    
+    severityClass(alarm) {
+      const severity = this.inferSeverity(alarm);
+      return `alert-${severity}`;
+    },
+    
+    pushAlert(alarm) {
+      if (!alarm) return;
+      
+      // Add timestamp if missing
+      const normalizedAlarm = {
+        ...alarm,
+        timestamp: alarm.timestamp || new Date().toISOString()
+      };
+      
+      // Check if alarm already exists
+      const existingIndex = this.alarms.findIndex(a => a.id === alarm.id);
+      if (existingIndex >= 0) {
+        this.alarms[existingIndex] = normalizedAlarm;
+      } else {
+        this.alarms.unshift(normalizedAlarm);
+      }
+      
+      // Keep only last 200 alarms
+      if (this.alarms.length > 200) {
+        this.alarms = this.alarms.slice(0, 200);
+      }
+    },
+    
+    updateAlert(alarm) {
+      const index = this.alarms.findIndex(a => a.id === alarm.id);
+      if (index >= 0) {
+        this.alarms[index] = {
+          ...alarm,
+          timestamp: alarm.timestamp || this.alarms[index].timestamp
+        };
+      }
+    },
+    
+    removeAlert(alarmId) {
+      this.alarms = this.alarms.filter(a => a.id !== alarmId);
+    }
+  },
+  
+  beforeUnmount() {
+    console.log('AlertsPanel: Unmounting');
+    if (this.socket && this.socket.connected) {
+      this.socket.disconnect();
+    }
   }
 };
 </script>
@@ -165,17 +216,29 @@ export default {
 
 .alert-critical {
   border-left: 4px solid #ef4444;
+  background-color: rgba(239, 68, 68, 0.05);
 }
 
 .alert-major {
   border-left: 4px solid #f97316;
+  background-color: rgba(249, 115, 22, 0.05);
 }
 
 .alert-minor {
   border-left: 4px solid #facc15;
+  background-color: rgba(250, 204, 21, 0.05);
 }
 
 .alert-info {
   border-left: 4px solid #94a3b8;
+  background-color: rgba(148, 163, 184, 0.05);
+}
+
+.v-list-item {
+  transition: all 0.2s ease;
+}
+
+.v-list-item:hover {
+  background-color: rgba(0, 0, 0, 0.02);
 }
 </style>

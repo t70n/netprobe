@@ -1,14 +1,20 @@
 generator client {
-   provider = "prisma-client-js"
-}
-
-model alarm {
-   id			         Int		@default(autoincrement()) @id
-   signal_id		   String		
-   signal_label		String
+  provider = "prisma-client-js"
 }
 
 datasource db {
-   provider = "sqlite"
-   url      = "file:./dev.db"
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model alarm {
+  id           Int      @id @default(autoincrement())
+  device       String?
+  severity     String?
+  message      String?
+  metric       String?
+  value        String?
+  timestamp    String?
+  signal_id    String?
+  signal_label String?
 }

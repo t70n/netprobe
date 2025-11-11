@@ -11,16 +11,34 @@ import bodyParser from 'body-parser';
 netprobeX.use(bodyParser.json());                  // Middleware pour parser le JSON
 
 // ------------------------------------------------------------------
+// ---[ Application Status Tracking ]--------------------------------
+// ------------------------------------------------------------------
+
+const serviceStatuses = {
+   producer: { name: 'Producer', status: 'unknown', timestamp: new Date() },
+   consumer: { name: 'Consumer', status: 'unknown', timestamp: new Date() },
+   backend: { name: 'Backend', status: 'online', timestamp: new Date() },
+};
+
+netprobeX.createService('app_status', {
+   findMany: async () => Object.values(serviceStatuses)
+});
+
+netprobeX.service('app_status').publish(async (status, context) => {
+   return ['public'];
+});
+
+// ------------------------------------------------------------------
 // ---[ Express-X for Frontend requests ]----------------------------
 // ------------------------------------------------------------------
 
 // Création du service 'alarm' pour gérer les opérations CRUD
 netprobeX.createService('alarms', {
-   findUnique: prisma.alarm.findUnique,            // Trouver une alarme par son ID unique
-   create: prisma.alarm.create,                    // Créer une nouvelle alarme
-   update: prisma.alarm.update,                    // Mettre à jour une alarme existante        /!\ SHOULD NOT BE ALLOWED FOR FRONTEND /!\
-   delete: prisma.alarm.delete,                    // Supprimer une alarme existante            /!\ SHOULD NOT BE ALLOWED FOR FRONTEND /!\
-   findMany: prisma.alarm.findMany,                // Récupérer toutes les alarmes
+   findUnique: prisma.alarm.findUnique,
+   create: prisma.alarm.create,
+   update: prisma.alarm.update,
+   delete: prisma.alarm.delete,
+   findMany: prisma.alarm.findMany,
 });
 
 // Publication des alarmes aux clients abonnés au service 'alarms' par WebSocket sur le canal 'alarms'
@@ -37,6 +55,49 @@ netprobeX.addConnectListener((socket) => {
 // ---[ Express API-Rest Server for middleware ]---------------------
 // ------------------------------------------------------------------
 
+// POST /api/app-status - Update service status
+netprobeX.post('/api/app-status', (req, res) => {
+  try {
+    const { service, status } = req.body;
+    
+    if (!service || !status) {
+      return res.status(400).json({ error: 'Service and status are required' });
+    }
+
+    const serviceKey = service.toLowerCase();
+    
+    if (serviceStatuses[serviceKey]) {
+      serviceStatuses[serviceKey].status = status;
+      serviceStatuses[serviceKey].timestamp = new Date();
+    } else {
+      serviceStatuses[serviceKey] = {
+        name: service,
+        status: status,
+        timestamp: new Date()
+      };
+    }
+
+    // Broadcast update via WebSocket to all connected clients
+    netprobeX.service('app_status').publish(Object.values(serviceStatuses));
+    
+    console.log(`Service status updated: ${service} = ${status}`);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error updating service status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/app-status - Get all service statuses
+netprobeX.get('/api/app-status', (req, res) => {
+  try {
+    res.json(Object.values(serviceStatuses));
+  } catch (error) {
+    console.error('Error getting service status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Route GET pour récupérer toutes les alarmes en BDD Prisma
 netprobeX.get('/api/alarms', async (req, res) => {
    try {
@@ -50,14 +111,24 @@ netprobeX.get('/api/alarms', async (req, res) => {
 
 // Route POST pour créer une nouvelle alarme en BDD Prisma
 netprobeX.post('/api/alarms', async (req, res) => {
-   const { signal_id, signal_label } = req.body;
    try {
+      // Support both old format (signal_id, signal_label) and new format (device, severity, message, etc.)
+      const alarmData = {
+         signal_id: req.body.signal_id || req.body.metric || 'unknown',
+         signal_label: req.body.signal_label || req.body.message || 'No description',
+         device: req.body.device || null,
+         severity: req.body.severity || null,
+         message: req.body.message || null,
+         metric: req.body.metric || null,
+         value: req.body.value ? String(req.body.value) : null,
+         timestamp: req.body.timestamp || new Date().toISOString(),
+      };
+
       const newAlarm = await netprobeX.service('alarms').create({
-         data: {
-            signal_id,
-            signal_label,
-         },
+         data: alarmData,
       });
+      
+      console.log(`[ALARM CREATED] ${alarmData.signal_label || alarmData.message}`);
       res.status(201).json(newAlarm);
    } catch (error) {
       console.error('Erreur lors de la création de l\'alarme :', error);
@@ -98,8 +169,8 @@ netprobeX.put('/api/alarms/:id', async (req, res) => {
 // ------------------------------------------------------------------
 
 // Démarrage du serveur WebSocket sur le port 8080 
-netprobeX.httpServer.listen(8080, () => {
-   console.log(`NetProbe Serveur : http://localhost:8080`);
+netprobeX.httpServer.listen(8080, '0.0.0.0', () => {
+   console.log(`NetProbe Serveur : http://backend:8080`);
 });
 
 // ------------------------------------------------------------------

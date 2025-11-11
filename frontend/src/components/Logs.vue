@@ -86,10 +86,11 @@
 
   <script setup>
   import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-  import io from 'socket.io-client';
+  import { io } from 'socket.io-client';
   import expressXClient from '@jcbuisson/express-x-client';
 
-  const socket = io('http://localhost:8080', { transports: ['websocket'] });
+  // Initialize socket without a URL to connect to the current host
+  const socket = io({ transports: ['websocket'] });
   const app = expressXClient(socket);
   
   // reactive states 
@@ -180,7 +181,7 @@
     try {
   
       socket.on('connect', () => {
-        console.log('Logs.vue connecté au backend (8080)');
+        console.log('Logs.vue connecté au backend');
   
         const alarmService = app.service('alarms');
   

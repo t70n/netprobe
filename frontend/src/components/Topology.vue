@@ -51,13 +51,6 @@ import {
   getSeverityColor 
 } from '../utils/topology';
 
-/**
- * Network Topology Component
- * 
- * This component visualizes network devices and their connections
- * using the GoJS library. It connects to a backend WebSocket to
- * receive real-time status updates.
- */
 export default {
   name: 'Topology',
   data() {
@@ -82,46 +75,43 @@ export default {
   },
   
   methods: {
-    /**
-     * Initializes the GoJS diagram for network topology
-     * @param {HTMLElement} div - Container for the diagram
-     */
     initializeDiagram(div) {
-      // Create the base diagram
       this.diagram = createDiagram(div);
       
-      // Set up templates
       const $ = go.GraphObject.make;
       this.diagram.nodeTemplate = createNodeTemplate($, this.deviceIcons);
       this.diagram.linkTemplate = createLinkTemplate($);
       
-      // Create the network model
       const { nodes, links } = getInitialNetworkData();
       this.diagram.model = new go.GraphLinksModel(nodes, links);
       
-      // Position the nodes
       positionNodes(this.diagram);
     },
     
-    /**
-     * Sets up the WebSocket connection for real-time updates
-     */
     setupSocketConnection() {
       try {
-        this.socket = io('http://localhost:8000', { transports: ['websocket'] });
+        this.socket = io({ 
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        });
+        
+        this.socket.on('connect', () => {
+          console.log('Topology connected to backend');
+        });
+        
+        this.socket.on('connect_error', (error) => {
+          console.error('Topology connection error:', error);
+        });
+        
         this.appClient = expressXClient(this.socket);
-
-        this.socket.on('connect', () => console.log('Topology connected to backend'));
-
         this.setupAlertHandler();
       } catch (err) {
         console.warn('Socket connection failed:', err);
       }
     },
     
-    /**
-     * Sets up event handlers for incoming alerts
-     */
     setupAlertHandler() {
       const updateNodeFromAlerte = (alerte) => {
         if (!alerte || !alerte.device || !this.diagram) return;
@@ -131,21 +121,53 @@ export default {
         
         const newColor = getSeverityColor(alerte.severity);
         
-        this.diagram.model.startTransaction('color');
+        // Animate the alert with a pulse effect
+        this.diagram.model.startTransaction('alert');
         this.diagram.model.setDataProperty(node.data, "color", newColor);
-        this.diagram.model.commitTransaction('color');
+        
+        // Add a temporary pulse animation by changing scale
+        const originalScale = node.scale;
+        node.scale = 1.2;
+        
+        setTimeout(() => {
+          if (this.diagram && node) {
+            node.scale = originalScale;
+          }
+        }, 300);
+        
+        this.diagram.model.commitTransaction('alert');
+        
+        // Flash the node border
+        this.flashNode(node);
       };
 
       try {
-        const svc = this.appClient.service('alarm');
+        const svc = this.appClient.service('alarms');
         if (svc && typeof svc.on === 'function') {
           svc.on('create', updateNodeFromAlerte);
+          console.log('Topology listening to alarm service');
         } else {
           this.socket.on('nouvelle_alerte', updateNodeFromAlerte);
         }
       } catch (e) {
+        console.warn('Could not set up alarm service, using fallback:', e);
         this.socket.on('nouvelle_alerte', updateNodeFromAlerte);
       }
+    },
+    
+    flashNode(node) {
+      // Create a flash effect by temporarily changing the stroke
+      const shape = node.findObject('SHAPE');
+      if (!shape) return;
+      
+      const originalStrokeWidth = shape.strokeWidth;
+      shape.strokeWidth = 6;
+      
+      setTimeout(() => {
+        if (shape) {
+          shape.strokeWidth = originalStrokeWidth;
+        }
+      }, 500);
     }
   },
   

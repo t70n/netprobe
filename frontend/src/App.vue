@@ -18,6 +18,10 @@
         <v-icon start icon="mdi-console-line"></v-icon>
         Network Logs
       </v-btn>
+      <v-btn href="http://localhost:15672" target="_blank" class="text-white">
+        <v-icon start icon="mdi-rabbit"></v-icon>
+        RabbitMQ
+      </v-btn>
 
       <v-spacer></v-spacer>
 

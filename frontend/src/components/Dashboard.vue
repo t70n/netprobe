@@ -1,7 +1,7 @@
 <template>
   <div>
+    <!-- Stats Row -->
     <v-row>
-      <!-- Quick Stats -->
       <v-col cols="12">
         <v-row>
           <v-col cols="12" md="3">
@@ -9,7 +9,7 @@
               <v-card-item>
                 <v-card-title class="text-h6">Active Alerts</v-card-title>
                 <div class="d-flex align-center">
-                  <v-icon icon="mdi-alert" size="x-large" color="error" class="mr-2"></v-icon>
+                  <v-icon icon="mdi-alert-circle" size="x-large" :color="activeAlerts > 0 ? 'error' : 'success'" class="mr-2"></v-icon>
                   <span class="text-h4 font-weight-bold">{{ activeAlerts }}</span>
                 </div>
               </v-card-item>
@@ -19,10 +19,10 @@
           <v-col cols="12" md="3">
             <v-card class="mx-auto" variant="outlined">
               <v-card-item>
-                <v-card-title class="text-h6">Devices</v-card-title>
+                <v-card-title class="text-h6">Total Events</v-card-title>
                 <div class="d-flex align-center">
-                  <v-icon icon="mdi-server-network" size="x-large" color="info" class="mr-2"></v-icon>
-                  <span class="text-h4 font-weight-bold">2</span>
+                  <v-icon icon="mdi-database" size="x-large" color="info" class="mr-2"></v-icon>
+                  <span class="text-h4 font-weight-bold">{{ totalEvents }}</span>
                 </div>
               </v-card-item>
             </v-card>
@@ -31,11 +31,10 @@
           <v-col cols="12" md="3">
             <v-card class="mx-auto" variant="outlined">
               <v-card-item>
-                <v-card-title class="text-h6">Network Traffic</v-card-title>
+                <v-card-title class="text-h6">System Services</v-card-title>
                 <div class="d-flex align-center">
-                  <v-icon icon="mdi-chart-line" size="x-large" color="secondary" class="mr-2"></v-icon>
-                  <span class="text-h4 font-weight-bold">120</span>
-                  <span class="text-subtitle-1 ml-1">Mbps</span>
+                  <v-icon icon="mdi-cog" size="x-large" :color="servicesOnline === totalServices ? 'success' : 'warning'" class="mr-2"></v-icon>
+                  <span class="text-h4 font-weight-bold">{{ servicesOnline }}/{{ totalServices }}</span>
                 </div>
               </v-card-item>
             </v-card>
@@ -44,79 +43,287 @@
           <v-col cols="12" md="3">
             <v-card class="mx-auto" variant="outlined">
               <v-card-item>
-                <v-card-title class="text-h6">Mean CPU Usage</v-card-title>
+                <v-card-title class="text-h6">Uptime</v-card-title>
                 <div class="d-flex align-center">
-                  <v-icon icon="mdi-cpu-64-bit" size="x-large" color="warning" class="mr-2"></v-icon>
-                  <span class="text-h4 font-weight-bold">12</span>
-                  <span class="text-subtitle-1 ml-1">%</span>
+                  <v-icon icon="mdi-clock-outline" size="x-large" color="primary" class="mr-2"></v-icon>
+                  <span class="text-h5 font-weight-bold">{{ uptime }}</span>
                 </div>
               </v-card-item>
             </v-card>
           </v-col>
         </v-row>
       </v-col>
+    </v-row>
 
+    <!-- System Architecture Section -->
+    <v-row class="mt-4">
       <v-col cols="12">
+        <v-card variant="outlined" class="section-card">
+          <v-card-title class="section-header">
+            <v-icon icon="mdi-application-cog" class="mr-2" color="primary"></v-icon>
+            <span class="text-h5">Application Architecture</span>
+          </v-card-title>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col cols="12" lg="8">
+        <v-card>
+          <v-card-title class="d-flex align-center">
+            <v-icon icon="mdi-sitemap" class="mr-2"></v-icon>
+            System Components
+            <v-spacer></v-spacer>
+            <v-chip size="small" color="primary" variant="flat">
+              <v-icon icon="mdi-pulse" size="small" class="mr-1"></v-icon>
+              Live Status
+            </v-chip>
+          </v-card-title>
+          <v-divider></v-divider>
+          <v-card-text class="pa-0">
+            <div class="architecture-container">
+              <ArchitectureDiagram />
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+      
+      <v-col cols="12" lg="4">
         <v-row>
-          <!-- Network Topology -->
-          <v-col cols="12" lg="8">
+          <v-col cols="12">
             <v-card>
               <v-card-title class="d-flex align-center">
-                <v-icon icon="mdi-lan" class="mr-2"></v-icon>
-                Network Topology
+                <v-icon icon="mdi-server" class="mr-2"></v-icon>
+                Service Health
                 <v-spacer></v-spacer>
-                <v-chip size="small" color="info" variant="flat">Auto-updates</v-chip>
+                <v-chip size="small" color="primary" variant="flat">
+                  <v-icon icon="mdi-pulse" size="small" class="mr-1"></v-icon>
+                  Monitoring
+                </v-chip>
               </v-card-title>
+              <v-divider></v-divider>
               <v-card-text class="pa-0">
-                <div class="topology-container">
-                  <Topology />
-                </div>
+                <AppStatusPanel @status-update="handleStatusUpdate" />
               </v-card-text>
             </v-card>
           </v-col>
-          
-          <!-- Alerts Panel -->
-          <v-col cols="12" lg="4">
+
+          <v-col cols="12">
             <v-card>
               <v-card-title class="d-flex align-center">
                 <v-icon icon="mdi-alert-circle-outline" class="mr-2"></v-icon>
-                Alerts
+                Recent Alerts
                 <v-spacer></v-spacer>
-                <v-chip size="small" color="error" variant="flat">Live</v-chip>
+                <v-chip size="small" color="error" variant="flat">
+                  <v-icon icon="mdi-bell-ring" size="small" class="mr-1"></v-icon>
+                  Live
+                </v-chip>
               </v-card-title>
+              <v-divider></v-divider>
               <v-card-text class="pa-0">
-                <AlertsPanel />
+                <AlertsPanel @alerts-update="handleAlertsUpdate" />
               </v-card-text>
             </v-card>
           </v-col>
         </v-row>
       </v-col>
     </v-row>
+
+    <!-- Network Topology Section -->
+    <v-row class="mt-6">
+      <v-col cols="12">
+        <v-card variant="outlined" class="section-card">
+          <v-card-title class="section-header">
+            <v-icon icon="mdi-network" class="mr-2" color="success"></v-icon>
+            <span class="text-h5">Network Infrastructure</span>
+          </v-card-title>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col cols="12">
+        <v-card>
+          <v-card-title class="d-flex align-center">
+            <v-icon icon="mdi-lan" class="mr-2"></v-icon>
+            Monitored Devices
+            <v-spacer></v-spacer>
+            <v-chip size="small" color="success" variant="flat">
+              <v-icon icon="mdi-refresh" size="small" class="mr-1"></v-icon>
+              Live Updates
+            </v-chip>
+          </v-card-title>
+          <v-divider></v-divider>
+          <v-card-text class="pa-0">
+            <div class="topology-container">
+              <Topology />
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
   </div>
 </template>
 
 <script>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { io } from 'socket.io-client';
+import expressXClient from '@jcbuisson/express-x-client';
 import Topology from './Topology.vue';
 import AlertsPanel from './AlertsPanel.vue';
-import { ref } from 'vue';
+import AppStatusPanel from './AppStatusPanel.vue';
+import ArchitectureDiagram from './ArchitectureDiagram.vue';
 
 export default {
   name: 'Dashboard',
-  components: { Topology, AlertsPanel },
+  components: { 
+    Topology, 
+    AlertsPanel, 
+    AppStatusPanel,
+    ArchitectureDiagram,
+  },
   setup() {
     const activeAlerts = ref(0);
+    const totalEvents = ref(0);
+    const servicesOnline = ref(0);
+    const totalServices = ref(0);
+    const uptime = ref('--:--:--');
     
-    // This would update based on alerts service in a real implementation
+    let socket = null;
+    let app = null;
+    let startTime = null;
+    let uptimeInterval = null;
+
+    const formatUptime = (seconds) => {
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = Math.floor(seconds % 60);
+      
+      if (days > 0) {
+        return `${days}d ${hours}h`;
+      } else if (hours > 0) {
+        return `${hours}h ${mins}m`;
+      } else {
+        return `${mins}m ${secs}s`;
+      }
+    };
+
+    const updateUptime = () => {
+      if (startTime) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        uptime.value = formatUptime(elapsed);
+      }
+    };
+
+    const handleStatusUpdate = (services) => {
+      if (services && Array.isArray(services)) {
+        totalServices.value = services.length;
+        servicesOnline.value = services.filter(s => s.status === 'online').length;
+      }
+    };
+
+    const handleAlertsUpdate = (alerts) => {
+      if (alerts && Array.isArray(alerts)) {
+        activeAlerts.value = alerts.length;
+      }
+    };
+
+    onMounted(async () => {
+      // Try to get existing start time from localStorage, or create new one
+      const storedStartTime = localStorage.getItem('netprobe_start_time');
+      if (storedStartTime) {
+        startTime = parseInt(storedStartTime, 10);
+      } else {
+        startTime = Date.now();
+        localStorage.setItem('netprobe_start_time', startTime.toString());
+      }
+      
+      // Update uptime every second
+      uptimeInterval = setInterval(updateUptime, 1000);
+      updateUptime();
+
+      // Connect to backend for stats
+      socket = io({ 
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      });
+
+      socket.on('connect', () => {
+        console.log('Dashboard connected to backend');
+      });
+
+      app = expressXClient(socket);
+
+      try {
+        // Fetch total events count from alarms
+        const alarmService = app.service('alarms');
+        const allAlarms = await alarmService.findMany({});
+        
+        if (allAlarms && Array.isArray(allAlarms)) {
+          totalEvents.value = allAlarms.length;
+          activeAlerts.value = allAlarms.length;
+        }
+
+        // Listen for new alarms to update total count
+        alarmService.on('create', () => {
+          totalEvents.value++;
+          activeAlerts.value++;
+        });
+
+      } catch (error) {
+        console.warn('Could not fetch alarm stats:', error);
+      }
+    });
+
+    onBeforeUnmount(() => {
+      if (uptimeInterval) {
+        clearInterval(uptimeInterval);
+      }
+      if (socket && socket.connected) {
+        socket.disconnect();
+      }
+    });
+
     return { 
-      activeAlerts
+      activeAlerts,
+      totalEvents,
+      servicesOnline,
+      totalServices,
+      uptime,
+      handleStatusUpdate,
+      handleAlertsUpdate,
     };
   }
 };
 </script>
 
-<style>
+<style scoped>
 .topology-container {
-  min-height: 400px;
-  height: 100%;
+  min-height: 500px;
+  height: 500px;
+}
+
+.architecture-container {
+  min-height: 450px;
+  height: 450px;
+}
+
+.section-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.section-header {
+  font-weight: 700;
+  color: #1a237e;
+}
+
+.v-card-title {
+  font-weight: 600;
+}
+
+.v-chip {
+  font-weight: 500;
 }
 </style>
