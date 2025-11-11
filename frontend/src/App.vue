@@ -1,6 +1,5 @@
 <template>
   <v-app>
-    <!-- App Bar -->
     <v-app-bar color="primary" density="default">
       <v-app-bar-title class="text-white">
         <div class="d-flex align-center">
@@ -9,7 +8,6 @@
         </div>
       </v-app-bar-title>
 
-      <!-- Links -->
       <v-btn to="/" class="text-white">
         <v-icon start icon="mdi-view-dashboard"></v-icon>
         Dashboard
@@ -35,14 +33,11 @@
       </v-btn>
     </v-app-bar>
 
-    <!-- Main Content -->
     <v-main class="bg-grey-lighten-4">
-      <v-container fluid class="pa-4">
+      <div class="pa-6">
         <router-view />
-      </v-container>
+      </div>
     </v-main>
-
-    <!-- Footer -->
     <v-footer app class="pa-3 text-center">
       <div class="text-caption text-grey">NetProbe Monitoring Tool</div>
     </v-footer>

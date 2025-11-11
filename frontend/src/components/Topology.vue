@@ -60,7 +60,7 @@ export default {
       appClient: null,
       deviceIcons: {
         Router: {
-          url: "/img/catrouter.jpg"
+          url: "/img/router-svgrepo-com.svg"
         }
       }
     };

@@ -24,10 +24,9 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  /* These properties were moved to the #app rule in the original, 
+    but for a full-screen Vuetify app, we just need margin: 0.
+  */
 }
 
 h1 {
@@ -58,12 +57,16 @@ button:focus-visible {
   padding: 2em;
 }
 
+/* ===[ THIS BLOCK IS THE FIX ]=== */
+/* The old rule constraining the width has been removed.
+  We can add a rule for #app to ensure it fills the viewport.
+*/
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  height: 100%;
 }
+/* ===[ END FIX ]=== */
+
 
 @media (prefers-color-scheme: light) {
   :root {

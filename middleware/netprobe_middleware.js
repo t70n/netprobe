@@ -24,7 +24,7 @@ async function connectToRabbitMQ() {
     try {
       console.log('Connecting to RabbitMQ...');
       const connection = await amqp.connect(RABBITMQ_URL);
-      const channel = await connection.createChannel(); // FIXED: createChannel() not channel()
+      const channel = await connection.createChannel();
       
       // Declare exchange as durable to match producer
       await channel.assertExchange(EXCHANGE, 'fanout', { durable: true });
@@ -110,6 +110,8 @@ async function sendAlarms(alarms) {
       console.log(`[${new Date().toISOString()}] Created alarm: ${alarm.message}`);
     } catch (error) {
       console.error(`Failed to send alarm:`, error.message);
+      // Re-throw the error to be caught by the consumer loop
+      throw error; 
     }
   }
 }
@@ -140,10 +142,20 @@ async function main() {
           await sendAlarms(alarms);
         }
         
+        // If sendAlarms was successful, ACK the message
         channel.ack(msg);
       } catch (error) {
-        console.error('Error processing message:', error.message);
-        channel.nack(msg, false, false);
+        console.error('Error processing message, re-queueing:', error.message);
+        
+        // ---[ THE FIX ]---
+        // This is the new, critical part.
+        // Wait 5 seconds before NACK-ing to prevent a "hot loop".
+        console.log('Pausing for 5 seconds before re-queueing...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        // ---[ END FIX ]---
+
+        // NACK the message and tell RabbitMQ to re-queue it (true)
+        channel.nack(msg, false, true);
       }
     }
   }, { noAck: false });

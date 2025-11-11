@@ -2,52 +2,27 @@
   <div class="architecture-wrapper">
     <div ref="diagramDiv" class="diagram-container"></div>
     
-    <!-- Enhanced Legend with Controls -->
     <div class="control-panel">
       <v-card variant="flat" class="pa-3">
         <div class="text-subtitle-2 font-weight-bold mb-3">System Controls</div>
         
-        <!-- Service Control Buttons -->
         <div class="mb-3">
-          <v-btn 
-            size="small" 
-            :color="serviceStates.producer ? 'error' : 'success'"
-            variant="flat"
-            @click="toggleService('producer')"
-            block
-            class="mb-2"
-          >
-            <v-icon :icon="serviceStates.producer ? 'mdi-stop' : 'mdi-play'" class="mr-1" size="small"></v-icon>
-            {{ serviceStates.producer ? 'Stop' : 'Start' }} Producer
-          </v-btn>
           
           <v-btn 
             size="small" 
-            :color="serviceStates.consumer ? 'error' : 'success'"
+            :color="serviceStates.consumer ? 'success' : 'error'"
             variant="flat"
             @click="toggleService('consumer')"
             block
             class="mb-2"
           >
-            <v-icon :icon="serviceStates.consumer ? 'mdi-stop' : 'mdi-play'" class="mr-1" size="small"></v-icon>
+            <v-icon :icon="!serviceStates.consumer ? 'mdi-play' : 'mdi-stop'" class="mr-1" size="small"></v-icon>
             {{ serviceStates.consumer ? 'Stop' : 'Start' }} Consumer
           </v-btn>
-          
-          <v-btn 
-            size="small" 
-            color="warning"
-            variant="flat"
-            @click="degradeService('rabbitmq')"
-            block
-          >
-            <v-icon icon="mdi-alert" class="mr-1" size="small"></v-icon>
-            Degrade RabbitMQ
-          </v-btn>
-        </div>
+          </div>
         
         <v-divider class="my-2"></v-divider>
         
-        <!-- Connection Legend -->
         <div class="text-caption font-weight-bold mb-2">Connection Types:</div>
         <div class="d-flex flex-column">
           <div class="d-flex align-center mb-1">
@@ -85,9 +60,9 @@ export default {
       socket: null,
       app: null,
       serviceStates: {
-        producer: true,
-        consumer: true,
-        rabbitmq: true,
+        producer: true, // Internal state for button
+        consumer: true, // Internal state for button
+        rabbitmq: true, // Internal state for button
       }
     };
   },
@@ -118,6 +93,7 @@ export default {
         {
           locationSpot: go.Spot.Center,
         },
+        new go.Binding('location', 'loc', go.Point.parse), // Use manual location
         $(
           go.Shape,
           'RoundedRectangle',
@@ -284,35 +260,23 @@ export default {
 
     toggleService(service) {
       this.serviceStates[service] = !this.serviceStates[service];
-      const newStatus = this.serviceStates[service] ? 'online' : 'offline';
+      const action = this.serviceStates[service] ? 'start' : 'stop';
       
-      // Update the diagram
-      this.updateNodeStatus(service, newStatus);
+      console.log(`Sending action: ${action} for service: ${service}`);
       
-      // TODO: Send command to backend to actually stop/start the service
-      console.log(`${service} toggled to ${newStatus}`);
-      
-      // Simulate backend call
       try {
         fetch('/api/service-control', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ service, action: newStatus })
-        }).catch(err => console.warn('Service control endpoint not implemented:', err));
+          body: JSON.stringify({ service, action: action })
+        }).catch(err => console.warn('Service control endpoint call failed:', err));
       } catch (err) {
         console.warn('Could not control service:', err);
       }
     },
 
     degradeService(service) {
-      this.updateNodeStatus(service, 'degraded');
-      
-      console.log(`${service} degraded`);
-      
-      // Auto-recover after 5 seconds (demo)
-      setTimeout(() => {
-        this.updateNodeStatus(service, 'online');
-      }, 5000);
+      // This was a demo function, so it's disabled.
     },
 
     setupSocketConnection() {
@@ -333,47 +297,42 @@ export default {
 
       this.app = expressXClient(this.socket);
 
-      // Listen for service status updates
       try {
         const statusService = this.app.service('app-status');
         
-        statusService.on('create', (data) => {
+        const updateNodeFromService = (service) => {
           const serviceMap = {
-            'Backend API': 'backend',
-            'RabbitMQ': 'rabbitmq',
+            'Backend': 'backend',
             'Producer': 'producer',
             'Consumer': 'consumer',
           };
-          
-          const nodeKey = serviceMap[data.service];
+          const nodeKey = serviceMap[service.name];
           if (nodeKey) {
-            this.updateNodeStatus(nodeKey, data.status);
-            this.serviceStates[nodeKey] = data.status === 'online';
+            this.updateNodeStatus(nodeKey, service.status);
+            if (this.serviceStates[nodeKey] !== undefined) {
+              this.serviceStates[nodeKey] = service.status === 'online';
+            }
+          }
+        };
+
+        statusService.on('data', (services) => {
+          if (Array.isArray(services)) {
+            services.forEach(updateNodeFromService);
           }
         });
 
         statusService.findMany({}).then((services) => {
-          services.forEach(service => {
-            const serviceMap = {
-              'Backend API': 'backend',
-              'RabbitMQ': 'rabbitmq',
-              'Producer': 'producer',
-              'Consumer': 'consumer',
-            };
-            const nodeKey = serviceMap[service.service];
-            if (nodeKey) {
-              this.updateNodeStatus(nodeKey, service.status);
-              this.serviceStates[nodeKey] = service.status === 'online';
-            }
-          });
+          services.forEach(updateNodeFromService);
+          this.updateNodeStatus('rabbitmq', 'online');
+          this.updateNodeStatus('database', 'online');
         }).catch(() => {
-          ['backend', 'rabbitmq', 'producer', 'consumer', 'database'].forEach(key => {
+          ['backend', 'producer', 'consumer', 'database', 'rabbitmq'].forEach(key => {
             this.updateNodeStatus(key, 'online');
           });
         });
 
       } catch (error) {
-        console.warn('App-status service not available');
+        console.warn('App-status service not available', error);
       }
     },
 

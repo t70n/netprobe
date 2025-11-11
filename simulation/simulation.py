@@ -123,8 +123,11 @@ class DataGenerator:
             'interfaces': interfaces
         }
 
+# ---[ FIXED HOSTNAMES ]---
 STATUS_URL = 'http://backend:8080/api/app-status'
 AMQP_URL = 'amqp://netprobe:supersecret@rabbitmq'
+# ---[ END FIXED ]---
+
 EXCHANGE = 'telemetry_exchange'
 
 def report_status(status):

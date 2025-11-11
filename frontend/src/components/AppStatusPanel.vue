@@ -1,137 +1,137 @@
 <template>
-  <v-list class="pa-0">
+  <v-list dense>
     <v-list-item
       v-for="service in services"
       :key="service.name"
-      class="px-4 py-2"
     >
+      <v-list-item-title class="font-weight-medium">{{ service.name }}</v-list-item-title>
+      
       <template v-slot:prepend>
-        <v-icon
-          :color="service.status === 'online' ? 'success' : 'error'"
-          class="mr-3"
-        >
-          {{ service.status === 'online' ? 'mdi-check-circle' : 'mdi-alert-circle' }}
-        </v-icon>
+        <v-icon :color="getStatusColor(service.status)" icon="mdi-circle" size="small" class="mr-3"></v-icon>
       </template>
-
-      <v-list-item-title class="font-weight-medium">
-        {{ service.name }}
-      </v-list-item-title>
 
       <template v-slot:append>
-        <v-chip
-          :color="service.status === 'online' ? 'success' : 'error'"
-          size="small"
-          variant="flat"
-        >
-          {{ service.status }}
-        </v-chip>
-      </template>
-    </v-list-item>
+        <div class="d-flex align-center">
+          <v-chip
+            :color="getStatusColor(service.status)"
+            size="small"
+            variant="tonal"
+            class="text-uppercase font-weight-bold"
+          >
+            {{ service.status }}
+          </v-chip>
 
-    <v-list-item v-if="services.length === 0" class="text-center pa-4">
-      <v-list-item-title class="text-grey">
-        <v-progress-circular indeterminate color="primary" size="24" class="mr-2"></v-progress-circular>
-        Connecting to services...
-      </v-list-item-title>
+          <template v-if="service.name.toLowerCase() === 'consumer'">
+            <v-btn
+              size="small"
+              variant="text"
+              icon="mdi-play"
+              color="success"
+              :disabled="service.status === 'online'"
+              @click="controlService(service.name, 'start')"
+              class="ml-2"
+            ></v-btn>
+            <v-btn
+              size="small"
+              variant="text"
+              icon="mdi-stop"
+              color="error"
+              :disabled="service.status !== 'online'"
+              @click="controlService(service.name, 'stop')"
+            ></v-btn>
+          </template>
+        </div>
+      </template>
     </v-list-item>
   </v-list>
 </template>
 
-<script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+<script>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { io } from 'socket.io-client';
 import expressXClient from '@jcbuisson/express-x-client';
+import axios from 'axios'; // We need axios to call the new API
 
-const emit = defineEmits(['status-update']);
+export default {
+  name: 'AppStatusPanel',
+  emits: ['status-update'],
+  setup(props, { emit }) {
+    const services = ref([]);
+    let socket = null;
+    let app = null;
+    let appStatusService = null;
 
-const services = ref([]);
-let socket = null;
-let app = null;
-
-// Emit status updates to parent
-watch(services, (newServices) => {
-  emit('status-update', newServices);
-}, { deep: true });
-
-onMounted(() => {
-  socket = io({ 
-    transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-  });
-
-  socket.on('connect', () => {
-    console.log('AppStatusPanel connected to backend');
-    // Add backend as a service
-    updateService('Backend API', 'online');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('AppStatusPanel disconnected from backend');
-    updateService('Backend API', 'error');
-  });
-
-  socket.on('connect_error', (error) => {
-    console.error('AppStatusPanel connection error:', error);
-    updateService('Backend API', 'error');
-  });
-
-  app = expressXClient(socket);
-
-  // Initialize default services
-  services.value = [
-    { name: 'Backend API', status: 'online' },
-    { name: 'RabbitMQ', status: 'online' },
-    { name: 'Producer', status: 'online' },
-    { name: 'Consumer', status: 'online' },
-  ];
-
-  // Try to get the app-status service for real-time updates
-  try {
-    const statusService = app.service('app-status');
-    
-    statusService.findMany({}).then((data) => {
-      if (data && Array.isArray(data) && data.length > 0) {
-        services.value = data.map(s => ({ name: s.service, status: s.status }));
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'online': return 'success';
+        case 'offline': return 'grey';
+        case 'error': return 'error';
+        default: return 'warning';
       }
-    }).catch((err) => {
-      console.warn('App-status service not yet available:', err);
+    };
+
+    const updateStatuses = (statusArray) => {
+      if (statusArray && Array.isArray(statusArray)) {
+        services.value = statusArray.sort((a, b) => a.name.localeCompare(b.name));
+        emit('status-update', services.value);
+      }
+    };
+
+    // ---[ MODIFIED FUNCTION ]---
+    const controlService = async (serviceName, action) => {
+      console.log(`Requesting ${action} for ${serviceName}`);
+      try {
+        // Send request to the new /api/service-control endpoint
+        // This request goes to Vite, which proxies it to the backend (port 8080)
+        const response = await axios.post('/api/service-control', {
+          service: serviceName.toLowerCase(),
+          action: action
+        });
+        console.log('Control request successful:', response.data);
+        // Note: The status will update automatically via the WebSocket push
+      } catch (error) {
+        console.error(`Failed to ${action} service:`, error);
+        alert(`Failed to ${action} ${serviceName}. See console for details.`);
+      }
+    };
+    // ---[ END MODIFIED FUNCTION ]---
+
+    onMounted(async () => {
+      socket = io({ transports: ['websocket', 'polling'], reconnection: true });
+
+      socket.on('connect', () => {
+        console.log('AppStatusPanel connected to backend');
+      });
+
+      app = expressXClient(socket);
+      appStatusService = app.service('app_status');
+
+      try {
+        const initialStatuses = await appStatusService.findMany({});
+        updateStatuses(initialStatuses);
+      } catch (error) {
+        console.warn('Could not fetch initial app statuses:', error);
+      }
+
+      appStatusService.on('data', (data) => {
+        updateStatuses(data);
+      });
     });
 
-    statusService.on('create', (data) => {
-      console.log('Service status update:', data);
-      updateService(data.service, data.status);
+    onBeforeUnmount(() => {
+      if (appStatusService) {
+        appStatusService.off('data');
+      }
+      if (socket && socket.connected) {
+        socket.disconnect();
+      }
     });
 
-  } catch (error) {
-    console.warn('App-status service not configured:', error);
-  }
-});
-
-const updateService = (serviceName, status) => {
-  const index = services.value.findIndex(s => s.name === serviceName);
-  if (index !== -1) {
-    services.value[index].status = status;
-  } else {
-    services.value.push({ name: serviceName, status });
+    return {
+      services,
+      getStatusColor,
+      controlService,
+    };
   }
 };
-
-onBeforeUnmount(() => {
-  if (socket && socket.connected) {
-    socket.disconnect();
-  }
-});
 </script>
-
-<style scoped>
-.v-list-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.v-list-item:last-child {
-  border-bottom: none;
-}
-</style>
