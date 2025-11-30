@@ -19,7 +19,10 @@ This project is fully containerized using Docker Compose and uses RabbitMQ as a 
 * **Simulation (Producer):** A Python service that generates (simulated) network telemetry and publishes it to the RabbitMQ bus.
 * **Message Bus:** RabbitMQ (using a `fanout` exchange) acts as the resilient data pipeline, buffering data and decoupling the producer from the consumer.
 
+---
+## French Presentation Video
 
+[![NetProbe - A Full-Stack Network Monitoring Dashboard](https://img.youtube.com/vi/3VcDmsyR9Jc/0.jpg)](https://www.youtube.com/watch?v=3VcDmsyR9Jc)
 
 ---
 
