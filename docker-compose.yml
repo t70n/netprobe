@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    ports:
+      # AMQP protocol port
+      - "5672:5672"
+      # HTTP management UI (accessible via SSH tunnel to localhost:15672)
+      - "127.0.0.1:15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=netprobe
+      - RABBITMQ_DEFAULT_PASS=supersecret
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/
+    networks:
+      - netprobe_network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      # Binds only to localhost on the host machine for Nginx proxy
+      - "127.0.0.1:8080:8080"
+    environment:
+      - DATABASE_URL=file:./prisma/dev.db
+    volumes:
+      - ./backend/prisma:/app/prisma
+    networks:
+      - netprobe_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  producer:
+    build: ./simulation
+    container_name: producer
+    restart: unless-stopped
+    volumes:
+      - ./simulation:/app
+    networks:
+      - netprobe_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  consumer:
+    build: ./middleware
+    container_name: consumer
+    restart: unless-stopped
+    networks:
+      - netprobe_network
+    environment:
+      - RABBITMQ_URL=amqp://netprobe:supersecret@rabbitmq:5672
+      - BACKEND_URL=http://backend:8080
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+networks:
+  netprobe_network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

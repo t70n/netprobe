@@ -1,167 +1,173 @@
-import WebSocket from 'ws';
+import amqp from 'amqplib';
+import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api/alarms';
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://netprobe:supersecret@rabbitmq:5672';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://backend:8080';
+const EXCHANGE = 'telemetry_exchange';
 
-const thresholds = {
-    cpu: 80,
-    memory: 85,
-    fanHighRPM: 9500,
-    fanLowRPM: 7000,
-    inErrorPackets: 5,
-    outErrorPackets: 5,
-    inDiscardedPackets: 5,
-    trafficBps: 1500000000,
-};
+// Report service status to backend
+async function reportStatus(status) {
+  try {
+    await axios.post(`${BACKEND_URL}/api/app-status`, {
+      service: 'Consumer',
+      status: status
+    });
+    console.log(`Reported status as: ${status}`);
+  } catch (error) {
+    console.error(`Failed to report status:`, error.message);
+  }
+}
 
-async function sendAlarmToAPI(alarm) {
+// Connect to RabbitMQ with retry logic
+async function connectToRabbitMQ() {
+  while (true) {
     try {
-        const response = await fetch(API_URL, {
-            method : 'POST',
-            headers : {
-                'Content-Type' : 'application/json',
-            },
-            body: JSON.stringify(alarm),
-        });
-
-        if (!response.ok) {
-            console.error(`erreur api : ${response.status} - ${response.statusText}`);
-            return false;
-        }
-        const newAlarm = await response.json();
-        console.log(`alarme envoyée et crée (ID: ${newAlarm.id})`);
-        return true;
+      console.log('Connecting to RabbitMQ...');
+      const connection = await amqp.connect(RABBITMQ_URL);
+      const channel = await connection.createChannel();
+      
+      // Declare exchange as durable to match producer
+      await channel.assertExchange(EXCHANGE, 'fanout', { durable: true });
+      
+      console.log('Successfully connected to RabbitMQ.');
+      await reportStatus('online');
+      return { connection, channel };
     } catch (error) {
-        console.error('Erreur lors de l\'envoi de l\'alarme');
-        return false;
+      console.error(`Failed to connect to RabbitMQ: ${error.message}. Retrying in 5 seconds...`);
+      await reportStatus('error');
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
+  }
 }
 
-/**
- * 
- * @param {Object} payload - JSON payload from simulator server
- */
-function triggerAlarms(payload) {
-    const alarms = [];
+// Analyze telemetry data and create alarms
+function analyzeTelemetry(telemetryData) {
+  const alarms = [];
+  const { device, data, timestamp } = telemetryData;
 
-    const dynamic = payload.dynamic || {};
-    const cpu = dynamic.cpu;
-    const memory = dynamic.memory;
+  // Check CPU usage
+  if (data.cpu > 80) {
+    alarms.push({
+      device,
+      severity: data.cpu > 90 ? 'critical' : 'major',
+      message: `High CPU usage: ${data.cpu}%`,
+      metric: 'cpu',
+      value: data.cpu,
+      timestamp: timestamp || new Date().toISOString()
+    });
+  }
 
-    if (cpu > thresholds.cpu) {
-        alarms.push({ 
-            signal_id: 'cpu_high', 
-            signal_label: `CPU usage high: ${cpu}%`  
+  // Check memory usage
+  if (data.memory > 85) {
+    alarms.push({
+      device,
+      severity: data.memory > 95 ? 'critical' : 'warning',
+      message: `High memory usage: ${data.memory}%`,
+      metric: 'memory',
+      value: data.memory,
+      timestamp: timestamp || new Date().toISOString()
+    });
+  }
+
+  // Check interfaces
+  if (data.interfaces) {
+    data.interfaces.forEach(iface => {
+      if (iface['oper-state'] === 'down') {
+        alarms.push({
+          device,
+          severity: 'major',
+          message: `Interface ${iface.name} is down`,
+          metric: 'interface_status',
+          value: iface.name,
+          timestamp: timestamp || new Date().toISOString()
         });
-    }
+      }
 
-    if (memory > thresholds.memory) {
-        alarms.push({ 
-            signal_id: 'memory_high', 
-            signal_label: `Memory usage high: ${memory}%`  
+      // Check for high error rates
+      const stats = iface.statistics || {};
+      const errorRate = (stats['in-error-packets'] || 0) + (stats['out-error-packets'] || 0);
+      if (errorRate > 100) {
+        alarms.push({
+          device,
+          severity: 'warning',
+          message: `High error rate on interface ${iface.name}: ${errorRate} errors`,
+          metric: 'interface_errors',
+          value: errorRate,
+          timestamp: timestamp || new Date().toISOString()
         });
-    }
+      }
+    });
+  }
 
-    if (dynamic.fans) {
-        dynamic.fans.forEach(fan => {
-            if (fan['speed-rpm'] > thresholds.fanHighRPM) {
-                alarms.push({ 
-                    signal_id: `fan_${fan.id}_high`,  
-                    signal_label: `Fan ${fan.id} running too fast: ${fan['speed-rpm']} RPM` 
-                });
-            }
-            if (fan['speed-rpm'] < thresholds.fanLowRPM) {
-                alarms.push({ 
-                    signal_id: `fan_${fan.id}_low`, 
-                    signal_label: `Fan ${fan.id} running too slow: ${fan['speed-rpm']} RPM` 
-                });
-            }
-        });
-    }
-
-    if (dynamic.interfaces) {
-        dynamic.interfaces.forEach(iface => {
-            const stats = iface.statistics || {};
-            const traffic = iface['traffic-rate'] || {};
-
-            if (iface['oper-state'] === 'down') {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_down`, 
-                    signal_label: `Interface ${iface.name} is down` 
-                });
-            }
-            if ((stats['in-error-packets'] || 0) > thresholds.inErrorPackets) {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_in_error`, 
-                    signal_label: `Interface ${iface.name} has too many input errors (CRC-CheckSum): ${stats['in-error-packets']}` 
-                });
-            }
-            if ((stats['out-error-packets'] || 0) > thresholds.outErrorPackets) {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_out_error`, 
-                    signal_label: `Interface ${iface.name} has too many output errors (abandonned): ${stats['out-error-packets']}` 
-                });
-            }
-            if ((stats['in-discarded-packets'] || 0) > thresholds.inDiscardedPackets) {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_in_discarded`, 
-                    signal_label: `Interface ${iface.name} discards too many input packets (bufferOverFlow): ${stats['in-discarded-packets']}` 
-                });
-            }
-            if ((traffic['in-bps'] || 0) > thresholds.trafficBps) {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_in_traffic`, 
-                    signal_label: `Interface ${iface.name} inbound traffic too high: ${traffic['in-bps']} bps` 
-                });
-            }
-            if ((traffic['out-bps'] || 0) > thresholds.trafficBps) {
-                alarms.push({ 
-                    signal_id: `iface_${iface.name}_out_traffic`, 
-                    signal_label: `Interface ${iface.name} outbound traffic too high: ${traffic['out-bps']} bps` 
-                });
-            }
-        });
-    }
-
-    return alarms;
+  return alarms;
 }
 
-async function connectToServer() {
+// Send alarms to backend
+async function sendAlarms(alarms) {
+  for (const alarm of alarms) {
     try {
-        const ws = new WebSocket('ws://localhost:8765');
+      await axios.post(`${BACKEND_URL}/api/alarms`, alarm);
+      console.log(`[${new Date().toISOString()}] Created alarm: ${alarm.message}`);
+    } catch (error) {
+      console.error(`Failed to send alarm:`, error.message);
+      // Re-throw the error to be caught by the consumer loop
+      throw error; 
+    }
+  }
+}
+
+// Main consumer logic
+async function main() {
+  const { connection, channel } = await connectToRabbitMQ();
+
+  // Create a queue for this consumer
+  const { queue } = await channel.assertQueue('', { exclusive: true });
+  
+  // Bind queue to exchange
+  await channel.bindQueue(queue, EXCHANGE, '');
+
+  console.log(`[*] Waiting for messages in queue: ${queue}. To exit press CTRL+C`);
+
+  // Consume messages
+  channel.consume(queue, async (msg) => {
+    if (msg !== null) {
+      try {
+        const telemetryData = JSON.parse(msg.content.toString());
+        console.log(`[${new Date().toISOString()}] Received telemetry from ${telemetryData.device}`);
         
-        ws.onopen = () => {
-            console.log('awaiting data...');
-        };
+        // Analyze and create alarms
+        const alarms = analyzeTelemetry(telemetryData);
+        
+        if (alarms.length > 0) {
+          await sendAlarms(alarms);
+        }
+        
+        // If sendAlarms was successful, ACK the message
+        channel.ack(msg);
+      } catch (error) {
+        console.error('Error processing message, re-queueing:', error.message);
+        
+        // ---[ THE FIX ]---
+        // This is the new, critical part.
+        // Wait 5 seconds before NACK-ing to prevent a "hot loop".
+        console.log('Pausing for 5 seconds before re-queueing...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        // ---[ END FIX ]---
 
-        ws.onmessage = async (event) => {
-            try {
-                const payload = JSON.parse(event.data);
-                const alarms = triggerAlarms(payload);
-
-                if (alarms.length > 0) {
-                    console.table(alarms); 
-                    const sendPromises = alarms.map(alarm => sendAlarmToAPI(alarm));
-                    await Promise.all(sendPromises);
-                } else {
-                    console.log('no alarms triggered');
-                }
-                console.log('--------------');
-            } catch (error) {
-                console.error('error processing message:', error);
-            }
-        };
-
-        ws.onerror = (error) => {
-            console.error('wb error:', error);
-        };
-
-        ws.onclose = () => {
-            console.log('connection closed');
-        };
-
-    } catch (error) {
-        console.error('impossible to connect:', error);
+        // NACK the message and tell RabbitMQ to re-queue it (true)
+        channel.nack(msg, false, true);
+      }
     }
+  }, { noAck: false });
+
+  // Handle graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\nShutting down consumer...');
+    await reportStatus('offline');
+    await channel.close();
+    await connection.close();
+    process.exit(0);
+  });
 }
 
-connectToServer();
+main().catch(console.error);

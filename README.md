@@ -1,120 +1,111 @@
-# NetProbe
+# NetProbe - A Full-Stack Network Monitoring Dashboard
+
 **Projet - N7AN04A : Application Internet**
 *FRANCOIS - PRADIER - CHAVEROUX*
 
 ---
 
-## Table des matières
-1. [Initialisation](#initialisation)
-2. [Backend](#backend)
-3. [Frontend](#frontend)
-4. [Middleware](#middleware)
-5. [Simulation](#simulation)
-6. [Tests](#tests)
-7. [Commandes cURL utiles](#commandes-curl-utiles)
+NetProbe is a real-time network monitoring application built on a modern, event-driven, microservice architecture. It features a live-updating Vue.js frontend that visualizes network topology, displays live alerts, and monitors the health of its own application stack.
+
+## Architecture
+
+This project is fully containerized using Docker Compose and uses RabbitMQ as a resilient message bus to decouple services.
+
+* **Frontend:** A Vue.js 3 application (with Vuetify) that serves the user dashboard. It connects to the backend via REST and WebSockets.
+* **Backend:** A Node.js server using Express-X. It serves the REST API, manages the SQLite database (with Prisma), and broadcasts all real-time updates to the frontend via two WebSocket channels:
+    1.  `alarms`: For live network alerts.
+    2.  `app_status`: For live "meta" monitoring of the application's own services.
+* **Middleware (Consumer):** A Node.js service that subscribes to the RabbitMQ message bus, consumes telemetry data, runs alarm-triggering logic, and POSTs alarms and stats to the Backend.
+* **Simulation (Producer):** A Python service that generates (simulated) network telemetry and publishes it to the RabbitMQ bus.
+* **Message Bus:** RabbitMQ (using a `fanout` exchange) acts as the resilient data pipeline, buffering data and decoupling the producer from the consumer.
+
+
 
 ---
 
-## Initialisation
-### Installation des dépendances
-Exécutez les commandes suivantes pour installer les dépendances de chaque module :
+## Prerequisites
 
-```bash
-cd ./backend; npm install; cd ..
-cd ./frontend; npm install; cd ..
-cd ./middleware; npm install; cd ..
-```
+* [Docker](https://www.docker.com/products/docker-desktop/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+* A web browser (Chrome, Firefox, etc.)
+* (For Deployment) `nginx`, `git`
 
 ---
 
-## Backend
-Le backend de l'application **NetProbe** est contenu dans le fichier `./backend/netprobe_server.js`.
+## Quick Start (Local Development)
 
-### Initialisation de la base de données avec Prisma
-```bash
-cd ./backend; npx prisma db push; cd ..
-```
+1.  **Clone the repository:**
+    ```bash
+    git clone [your-repo-url]
+    cd netprobe-final
+    ```
 
-### Lancement du backend
-Pour démarrer le backend, utilisez la commande suivante :
-```bash
-npx nodemon ./backend/netprobe_server.js
-```
+2.  **Build and Run the Stack:**
+    ```bash
+    docker-compose up --build
+    ```
 
----
+3.  **Initialize the Database:**
+    *In a separate terminal*, run this command once the containers are up:
+    ```bash
+    docker-compose exec backend npx prisma db push
+    ```
 
-## Frontend
-Le frontend de l'application **NetProbe** est une application **VueJS**, contenue dans le fichier `./frontend/App.vue`.
-
-### Lancement du frontend
-Pour démarrer le frontend, ouvrez un nouveau terminal et exécutez :
-```bash
-cd ./frontend; npm run dev;
-```
+4.  **View the Application:**
+    * **NetProbe UI:** `http://localhost:5173`
+    * **RabbitMQ Management UI:** `http://localhost:15672` (User: `netprobe`, Pass: `supersecret`)
 
 ---
 
-## Simulation
-Dans la première version de ce projet, les équipements réseau sont **simulés** à l'aide d'un script Python : `./simulation/simulation.py`.
+## Production Deployment (VPS)
 
-### Lancement de la simulation
-Pour démarrer la simulation, exécutez :
-```bash
-cd ./simulation/; python3 ./simulation.py
-```
+These instructions assume a production VPS running `nginx` and `certbot` for SSL.
 
-### Dépendances requises
-Assurez-vous d'avoir installé les paquets Python suivants :
-- `json`
-- `time`
-- `random`
-- `asyncio`
-- `websockets`
-- `datetime`
+1.  **Stop Old Services:**
+    If you were using `pm2`, stop and remove it from startup:
+    ```bash
+    pm2 stop all
+    pm2 delete all
+    pm2 save
+    pm2 unstartup
+    # (Run the command pm2 gives you to remove it from startup)
+    ```
 
----
+2.  **Get the Code:**
+    ```bash
+    cd /home/webapp/web-project/netprobe
+    git pull
+    ```
 
-## Middleware
-Le middleware de l'application **NetProbe** est contenu dans le fichier `./middleware/netprobe_middleware.js`.
+3.  **Build the Static Frontend:**
+    This step bundles the Vue.js app for Nginx to serve.
+    ```bash
+    cd /home/webapp/web-project/netprobe/frontend
+    npm install
+    npm run build
+    cd ..
+    ```
 
-### Lancement du middleware
-Pour démarrer le middleware, utilisez la commande suivante :
-```bash
-npx nodemon ./middleware/netprobe_middleware.js
-```
+4.  **Launch the Docker Stack:**
+    This will build and run the `backend`, `middleware`, `simulation`, and `rabbitmq` containers in the background. The `docker-compose.yml` is configured to bind the backend to `127.0.0.1:8080`, which your existing Nginx proxy will pick up.
+    ```bash
+    docker-compose up --build -d
+    ```
 
----
+5.  **Initialize the Database:**
+    (Only needed the first time, or after a `docker-compose down -v`)
+    ```bash
+    docker-compose exec backend npx prisma db push
+    ```
 
-## Tests
-### Tests Backend
-#### Lancer le client de test
-Le client frontal permet de récupérer toutes les entrées de la base de données et se met à jour en temps réel :
-```bash
-npx nodemon ./tests_env/test_frontend/netprobe_client_test.js
-```
-
-#### Publier des données dans la base de données
-Utilisez le script `jeu_curl_test.sh` :
-```bash
-chmod +x ./tests_env/test_middleware/jeu_curl_test.sh
-./tests_env/test_middleware/jeu_curl_test.sh
-```
-> **Note** : Assurez-vous d'avoir [jq](https://stedolan.github.io/jq/) installé pour formater les réponses JSON.
-
-### Tests Simulation
-Pour tester la simulation, utilisez le script :
-`./tests_env/test_simulation/simulation.py`
+Your application is now live and managed by Docker.
 
 ---
 
-## Commandes cURL utiles
-Voici quelques exemples de commandes cURL pour interagir avec l'API :
+## Services
 
-| Action                     | Commande                                                                                     |
-|----------------------------|----------------------------------------------------------------------------------------------|
-| Récupérer toutes les alarmes | `curl -s -X GET http://localhost:8080/api/alarms \| jq`                                         |
-| Ajouter une alarme          | `curl -s -X POST http://localhost:8080/api/alarms -H 'Content-Type: application/json' -d '{"signal_id": "abc", "signal_label": "Merci JC.Buisson"}' \| jq` |
-| Supprimer une alarme        | `curl -s -X DELETE http://localhost:8080/api/alarms/{alarm_id} -H 'Content-Type: application/json' \| jq` |
-| Mettre à jour une alarme    | `curl -s -X PUT http://localhost:8080/api/alarms/{alarm_id} -H 'Content-Type: application/json' -d '{"signal_id": "rtyu", "signal_label": "Merci BCP JC.Buisson pour le troubleshoot"}' \| jq` |
-
-> **Remarque** : Les méthodes `PUT` et `DELETE` sont disponibles uniquement à des fins d'apprentissage. Dans un environnement de production, les routeurs ou appareils IoT ne devraient **pas** y avoir accès.
+* **`frontend`**: (Dev) Runs on `localhost:5173`. (Prod) Served by Nginx.
+* **`backend`**: (Prod) Runs on `localhost:8080`, proxied by Nginx.
+* **`rabbitmq`**: (Prod) Runs on `localhost:15672` (for UI) and `5672` (for AMQP).
+* **`middleware`**: Internal service.
+* **`simulation`**: Internal service.

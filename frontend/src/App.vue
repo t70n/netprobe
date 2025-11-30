@@ -1,6 +1,5 @@
 <template>
   <v-app>
-    <!-- App Bar -->
     <v-app-bar color="primary" density="default">
       <v-app-bar-title class="text-white">
         <div class="d-flex align-center">
@@ -9,11 +8,24 @@
         </div>
       </v-app-bar-title>
 
+      <v-btn to="/" class="text-white">
+        <v-icon start icon="mdi-view-dashboard"></v-icon>
+        Dashboard
+      </v-btn>
+      <v-btn to="/logs" class="text-white">
+        <v-icon start icon="mdi-console-line"></v-icon>
+        Network Logs
+      </v-btn>
+      <v-btn href="http://localhost:15672" target="_blank" class="text-white">
+        <v-icon start icon="mdi-rabbit"></v-icon>
+        RabbitMQ
+      </v-btn>
+
       <v-spacer></v-spacer>
 
       <div class="d-flex align-center text-white text-subtitle-2 mr-4">
         <v-icon icon="mdi-circle" color="success" size="small" class="mr-1"></v-icon>
-        Connected to backend:8000
+        Connected to backend:8080
       </div>
       
       <v-btn icon>
@@ -21,14 +33,11 @@
       </v-btn>
     </v-app-bar>
 
-    <!-- Main Content -->
     <v-main class="bg-grey-lighten-4">
-      <v-container fluid class="pa-4">
-        <Dashboard />
-      </v-container>
+      <div class="pa-6">
+        <router-view />
+      </div>
     </v-main>
-
-    <!-- Footer -->
     <v-footer app class="pa-3 text-center">
       <div class="text-caption text-grey">NetProbe Monitoring Tool</div>
     </v-footer>
@@ -36,10 +45,8 @@
 </template>
 
 <script>
-import Dashboard from './components/Dashboard.vue';
 
 export default {
   name: 'App',
-  components: { Dashboard }
 };
 </script>

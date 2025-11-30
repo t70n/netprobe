@@ -1,8 +1,8 @@
 {
-  "name": "",
+  "name": "netprobe-middleware",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "NetProbe consumer middleware",
+  "main": "netprobe_middleware.js",
   "type": "module",
   "license": "AGPL-version-3.0",
   "private": false,
@@ -25,11 +25,13 @@
   "contributors": [],
   "scripts": {
     "dev": "",
-    "test": ""
+    "test": "",
+    "start": "node netprobe_middleware.js"
   },
   "dependencies": {
     "@jcbuisson/express-x": "^2.1.20",
-    "express": "^5.1.0",
-    "ws": "^8.18.3"
+    "amqplib": "^0.10.3",
+    "axios": "^1.6.0",
+    "express": "^5.1.0"
   }
 }

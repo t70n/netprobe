@@ -30,7 +30,8 @@
   "dependencies": {
     "@jcbuisson/express-x": "^2.1.20",
     "@prisma/client": "^6.16.3",
-    "body-parser": "^2.2.0"
+    "body-parser": "^2.2.0",
+    "dockerode": "^4.0.9"
   },
   "devDependencies": {
     "prisma": "^6.16.3"
